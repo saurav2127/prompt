@@ -2,26 +2,20 @@ import argparse
 import pandas as pd
 import os
 import time
-from accelerate import Accelerator
-from datasets import load_dataset
-from peft import LoraConfig
-from tqdm import tqdm
-from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, logging, set_seed
+from transformers import AutoModelForCausalLM, AutoTokenizer, set_seed
 import torch
-from trl import SFTTrainer
-from trl.trainer import ConstantLengthDataset
 
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_path", type=str, default="")
     parser.add_argument("--input_file", type=str, default="data_v1.csv")
     parser.add_argument("--output_file", type=str, default="generated_responses.csv")
-    #parser.add_argument("--api_key", type=str, required=True, help="API key for the OpenAI model")
+    parser.add_argument("--num_samples", type=int, default=10, help="Number of samples to process")
     return parser.parse_args()
 
 # Function to generate responses using the specified LLM model
 def generate_response(model, tokenizer, prompt):
-    inputs = tokenizer(prompt, return_tensors="pt")
+    inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
     outputs = model.generate(**inputs)
     return tokenizer.decode(outputs[0], skip_special_tokens=True)
 
@@ -83,22 +77,26 @@ def main():
     args = get_args()
     set_seed(42)  # Ensure reproducibility
 
-    access_token = "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"
-
     # Load the model and tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(args.model_path, token=access_token)
+    tokenizer = AutoTokenizer.from_pretrained(args.model_path)
     model = AutoModelForCausalLM.from_pretrained(
-        args.model_path, load_in_4bit=True, device_map="auto", token=access_token
+        args.model_path, load_in_4bit=True, device_map="auto"
     )
+
+    # Move model to CUDA
+    model.to("cuda")
 
     # Read the input CSV file
     data = pd.read_csv(args.input_file)
+
+    # Limit to the specified number of samples
+    data = data.sample(n=args.num_samples, random_state=42)
 
     # Initialize a list to store the results
     results = []
 
     # Iterate over each row in the DataFrame
-    for i, row in data.iterrows():
+    for i, row in tqdm(data.iterrows(), total=data.shape[0]):
         conv_id = row['conv_id']
         context = row['context']
         response = row['response']
@@ -115,6 +113,8 @@ def main():
             
             # Format the generated response
             generated_response = f"[SOR] {next_speaker} \"{generated_response.strip()}\" [EOR]"
+
+            print(generated_response)
             
             # Append the result to the list
             results.append([conv_id, context, response, generated_response])
