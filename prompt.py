@@ -11,12 +11,13 @@ def get_args():
     parser.add_argument("--input_file", type=str, default="test_csv.csv")
     parser.add_argument("--output_file", type=str, default="generated_responses.csv")
     parser.add_argument("--num_samples", type=int, default=1, help="Number of samples to process")
+    parser.add_argument("--max_new_tokens", type=int, default=2000, help="Maximum number of tokens to generate")
     return parser.parse_args()
 
 # Function to generate responses using the specified LLM model
-def generate_response(model, tokenizer, prompt):
-    inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
-    outputs = model.generate(**inputs)
+def generate_response(model, tokenizer, prompt, max_new_tokens):
+    inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=2000).to(model.device)
+    outputs = model.generate(**inputs, max_new_tokens=max_new_tokens)
     return tokenizer.decode(outputs[0], skip_special_tokens=True)
 
 # Function to create the initial prompt for generating responses
@@ -106,7 +107,7 @@ def main():
         
         try:
             # Get completion from the specified model
-            generated_response = generate_response(model, tokenizer, prompt)
+            generated_response = generate_response(model, tokenizer, prompt, args.max_new_tokens)
             
             # Format the generated response
             generated_response = f"[SOR] {next_speaker} \"{generated_response.strip()}\" [EOR]"
