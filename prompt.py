@@ -3,14 +3,14 @@ import pandas as pd
 import os
 import time
 from transformers import AutoModelForCausalLM, AutoTokenizer, set_seed
-import torch
+from tqdm import tqdm
 
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_path", type=str, default="")
-    parser.add_argument("--input_file", type=str, default="data_v1.csv")
+    parser.add_argument("--input_file", type=str, default="test_csv.csv")
     parser.add_argument("--output_file", type=str, default="generated_responses.csv")
-    parser.add_argument("--num_samples", type=int, default=10, help="Number of samples to process")
+    parser.add_argument("--num_samples", type=int, default=1, help="Number of samples to process")
     return parser.parse_args()
 
 # Function to generate responses using the specified LLM model
@@ -83,9 +83,6 @@ def main():
         args.model_path, load_in_4bit=True, device_map="auto"
     )
 
-    # Move model to CUDA
-    model.to("cuda")
-
     # Read the input CSV file
     data = pd.read_csv(args.input_file)
 
@@ -113,8 +110,6 @@ def main():
             
             # Format the generated response
             generated_response = f"[SOR] {next_speaker} \"{generated_response.strip()}\" [EOR]"
-
-            print(generated_response)
             
             # Append the result to the list
             results.append([conv_id, context, response, generated_response])
